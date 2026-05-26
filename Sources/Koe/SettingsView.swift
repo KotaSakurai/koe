@@ -70,12 +70,14 @@ struct SettingsView: View {
 
     private var refineTab: some View {
         Form {
-            Toggle("LLM で整形・補正する（Ollama）", isOn: $refineEnabled)
+            Toggle("漢字の取り違えだけ補正する（Ollama・言い換えはしない）", isOn: $refineEnabled)
             TextField("Ollama モデル名", text: $ollamaModel)
                 .textFieldStyle(.roundedBorder)
             TextField("Ollama サーバ URL", text: $ollamaBaseURL)
                 .textFieldStyle(.roundedBorder)
-            Text("Ollama が未起動・接続失敗のときは、整形せず文字起こし結果をそのまま使います。")
+            Text("オンにすると、同音異義語の漢字ミス（例: 保管→補完）だけを直します。語尾や言い回しは変えません。")
+                .font(.caption).foregroundStyle(.secondary)
+            Text("Ollama が未起動・接続失敗のときは、補正せず文字起こし結果をそのまま使います。")
                 .font(.caption).foregroundStyle(.secondary)
             Text("導入例: brew install ollama → ollama serve → ollama pull \(ollamaModel)")
                 .font(.caption).foregroundStyle(.secondary)

@@ -20,7 +20,7 @@ enum Settings {
 
     static func registerDefaults() {
         d.register(defaults: [
-            SettingsKey.refineEnabled: true,
+            SettingsKey.refineEnabled: true,    // 漢字の取り違えだけを補正（言い換えはしない）
             SettingsKey.ollamaModel: "qwen2.5:3b",
             SettingsKey.ollamaBaseURL: "http://localhost:11434",
             SettingsKey.whisperModel: WhisperModelKind.largeV3Turbo.rawValue,
