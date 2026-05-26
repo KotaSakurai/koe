@@ -10,9 +10,11 @@ struct OllamaClient {
     var timeout: TimeInterval = 30
     var temperature: Double = 0     // 0 で最も決定的（余計な書き換えを抑える）
 
-    func refine(_ raw: String) async -> String {
+    func refine(_ raw: String) async -> RefineOutcome {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return raw }
+        guard !trimmed.isEmpty else {
+            return RefineOutcome(finalText: raw, proposed: nil, accepted: false, reason: "empty_input")
+        }
 
         do {
             let url = baseURL.appendingPathComponent("api/chat")
@@ -31,15 +33,15 @@ struct OllamaClient {
 
             let (data, response) = try await URLSession.shared.data(for: req)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                log("整形スキップ（Ollama 応答エラー）: フォールバックで生テキストを使用")
-                return trimmed
+                log("整形スキップ（Ollama 応答エラー）: 生テキストを使用")
+                return RefineOutcome(finalText: trimmed, proposed: nil, accepted: false, reason: "http_error")
             }
             let decoded = try JSONDecoder().decode(ChatResponse.self, from: data)
             let refined = decoded.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            return RefineCore.accept(trimmed: trimmed, modelOutput: refined, mode: mode)
+            return RefineCore.evaluate(trimmed: trimmed, proposed: refined, mode: mode)
         } catch {
             log("整形スキップ（Ollama 接続失敗: \(error.localizedDescription)）: 生テキストを使用")
-            return trimmed
+            return RefineOutcome(finalText: trimmed, proposed: nil, accepted: false, reason: "unreachable")
         }
     }
 

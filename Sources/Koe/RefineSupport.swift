@@ -6,6 +6,16 @@ struct RefineMessage {
     let content: String
 }
 
+// 整形の結果と判断理由（ログ・検証用）。Ollama / DeepSeek 共通。
+struct RefineOutcome: Sendable {
+    let finalText: String     // 実際に採用したテキスト
+    let proposed: String?     // LLM が返した整形案（呼べた場合）
+    let accepted: Bool        // 整形案を採用したか
+    // accepted / no_change / reading_changed / length_guard / empty_response /
+    // empty_input / http_error / unreachable / no_api_key / disabled
+    let reason: String
+}
+
 // 整形の強さ。
 // - strict:  同音異義語の漢字取り違えだけ直す。読みガードで「読みが変わる修正」を破棄（最も安全）。
 // - natural: 上記に加え、カタカナ認識された英語の固有名詞・製品名・技術略語を英字表記へ直す
@@ -97,25 +107,29 @@ enum RefineCore {
         return msgs
     }
 
-    // モデル出力を採用してよいか判定し、安全なテキストを返す。
-    // 採用できない（指示への返答・丸ごと書き換え・言い換え）場合は trimmed（生テキスト）を返す。
-    // - trimmed:     整形前の文字起こし（前後空白を除去済み）
-    // - modelOutput: モデルが返した本文（呼び出し側で trim 済みを渡す）
-    // - mode:        strict は読みガードも適用。natural は読みが変わる修正を許すため長さガードのみ。
-    static func accept(trimmed: String, modelOutput refined: String, mode: RefineMode) -> String {
-        if refined.isEmpty { return trimmed }
-
+    // モデル出力を評価し、採否・理由つきの結果を返す。
+    // 採用できない（無変更・丸ごと書き換え・言い換え）場合は trimmed（生テキスト）を finalText に入れる。
+    // - trimmed:  整形前の文字起こし（前後空白を除去済み）
+    // - proposed: モデルが返した本文（呼び出し側で trim 済みを渡す）
+    // - mode:     strict は読みガードも適用。natural は読みが変わる修正を許すため長さガードのみ。
+    static func evaluate(trimmed: String, proposed refined: String, mode: RefineMode) -> RefineOutcome {
+        if refined.isEmpty {
+            return RefineOutcome(finalText: trimmed, proposed: nil, accepted: false, reason: "empty_response")
+        }
+        if refined == trimmed {
+            return RefineOutcome(finalText: trimmed, proposed: refined, accepted: false, reason: "no_change")
+        }
         // 安全ガード1（両モード共通）: 文字数が大きく変わる結果（指示への返答・丸ごと書き換え）は破棄。
         if refined.count > Int(Double(trimmed.count) * 1.4) + 4 || refined.count * 2 < trimmed.count {
             log("補正結果が原文と大きく異なるため破棄（生テキストを使用）")
-            return trimmed
+            return RefineOutcome(finalText: trimmed, proposed: refined, accepted: false, reason: "length_guard")
         }
         // 安全ガード2（strict のみ）: 読み（ふりがな）が変わる修正は「言い換え・意味反転」とみなし破棄。
         // natural はカタカナ→英字で読みが変わるのが正常なため、このガードは適用しない。
         if mode == .strict, !Reading.isSame(trimmed, refined) {
             log("読みが変わるため破棄（言い換え/誤変換とみなし生テキストを使用）")
-            return trimmed
+            return RefineOutcome(finalText: trimmed, proposed: refined, accepted: false, reason: "reading_changed")
         }
-        return refined
+        return RefineOutcome(finalText: refined, proposed: refined, accepted: true, reason: "accepted")
     }
 }

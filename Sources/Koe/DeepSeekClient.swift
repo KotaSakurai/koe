@@ -12,12 +12,14 @@ struct DeepSeekClient {
     var timeout: TimeInterval = 30
     var temperature: Double = 0             // 0 で最も決定的（余計な書き換えを抑える）
 
-    func refine(_ raw: String) async -> String {
+    func refine(_ raw: String) async -> RefineOutcome {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return raw }
+        guard !trimmed.isEmpty else {
+            return RefineOutcome(finalText: raw, proposed: nil, accepted: false, reason: "empty_input")
+        }
         guard !apiKey.isEmpty else {
             log("整形スキップ（DeepSeek API キー未設定）: 生テキストを使用")
-            return trimmed
+            return RefineOutcome(finalText: trimmed, proposed: nil, accepted: false, reason: "no_api_key")
         }
 
         do {
@@ -40,15 +42,15 @@ struct DeepSeekClient {
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
                 let code = (response as? HTTPURLResponse)?.statusCode ?? -1
                 log("整形スキップ（DeepSeek 応答エラー status=\(code)）: 生テキストを使用")
-                return trimmed
+                return RefineOutcome(finalText: trimmed, proposed: nil, accepted: false, reason: "http_error")
             }
             let decoded = try JSONDecoder().decode(ChatResponse.self, from: data)
             let refined = (decoded.choices.first?.message.content ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            return RefineCore.accept(trimmed: trimmed, modelOutput: refined, mode: mode)
+            return RefineCore.evaluate(trimmed: trimmed, proposed: refined, mode: mode)
         } catch {
             log("整形スキップ（DeepSeek 接続失敗: \(error.localizedDescription)）: 生テキストを使用")
-            return trimmed
+            return RefineOutcome(finalText: trimmed, proposed: nil, accepted: false, reason: "unreachable")
         }
     }
 
