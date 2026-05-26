@@ -47,3 +47,15 @@
     say -v Kyoko -o /tmp/t.aiff "今日はいい天気です"
     KOE_TRANSCRIBE_FILE=/tmp/t.aiff KOE_SELFTEST_EXIT=1 ./build/Koe.app/Contents/MacOS/Koe  # 文字起こし＋整形
     KOE_INSERT_TEST="テスト" KOE_SELFTEST_EXIT=1 ./build/Koe.app/Contents/MacOS/Koe          # クリップボード挿入
+
+## コントリビュート
+
+不具合報告・機能提案・プルリクエストを歓迎します。大きな変更を行う場合は、先に Issue で相談いただけると円滑です。設計の背景は `plans/2026-05-25-voice-input-mac-app/ExecPlan.md` を参照してください。
+
+## ライセンス
+
+[MIT License](LICENSE) で配布します。Copyright (c) 2026 kazumalab。
+
+## 謝辞・サードパーティ
+
+本アプリは [whisper.cpp](https://github.com/ggml-org/whisper.cpp)（MIT）と [ggml](https://github.com/ggml-org/ggml)（MIT）を静的リンクし、ローカル整形に [Ollama](https://github.com/ollama/ollama)（MIT、任意・実行時）を利用します。Whisper のモデル重みは OpenAI 由来（MIT）です。各依存の詳細は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) を参照してください。
