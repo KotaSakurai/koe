@@ -1,9 +1,11 @@
 # Koe — LLM補完つきオフライン音声入力（macOS）
 
-「Typeless」のような、どこでも使える音声入力ツール。グローバルなホットキーを押している間だけ録音し、離すと **ローカルの Whisper** で文字起こし、**ローカルの Ollama（LLM）** で誤認識補正・句読点付与・整形を行い、整形済みテキストを **いま入力中のアプリのカーソル位置に自動挿入** します。音声・テキストは一切外部送信しません（完全オフライン。整形は Ollama 未導入時は自動でスキップ）。
+「Typeless」のような、どこでも使える音声入力ツール。グローバルなホットキーを押している間だけ録音し、離すと **ローカルの Whisper** で文字起こし、**LLM** で誤認識補正・整形を行い、整形済みテキストを **いま入力中のアプリのカーソル位置に自動挿入** します。整形バックエンドは **ローカルの Ollama（既定・完全オフライン）** か、**DeepSeek API（高精度・要 API キー）** から選べます。
+
+> 既定（Ollama）では音声・テキストを一切外部送信しません（完全オフライン。整形は Ollama 未導入時は自動でスキップ）。**DeepSeek を選んだ場合のみ、文字起こしテキストが DeepSeek サーバへ送信されます**（音声は送信しません）。
 
 - 音声認識: whisper.cpp（v1.7.6 を静的リンク、Apple Silicon / Metal）
-- 整形: Ollama（`http://localhost:11434`、任意・推奨）
+- 整形（いずれか）: Ollama（`http://localhost:11434`、ローカル・既定）/ DeepSeek（`https://api.deepseek.com`、API・高精度）
 - 形態: メニューバー常駐 + push-to-talk（既定は右Option 長押し）
 
 ## 必要環境
@@ -27,11 +29,15 @@
    - 入力監視（ホットキー検知）※許可後はアプリを再起動
    - アクセシビリティ（⌘V 貼り付け）
 2. Whisper モデルは初回起動時に `ggml-small.bin`（約466MB）を自動ダウンロード（`~/Library/Application Support/Koe/models/`）。手動なら `./scripts/download-model.sh small`。
-3. 整形（推奨）：Ollama を導入・起動し、モデルを取得。
+3. 整形（推奨）：設定の「整形」タブで補正エンジンを選びます。
 
-       brew install ollama
-       ollama serve            # 別ターミナルで常駐
-       ollama pull qwen2.5:3b  # 設定の「整形」タブのモデル名と合わせる
+   - **Ollama（ローカル・既定）**: 完全オフライン。導入・起動してモデルを取得。
+
+         brew install ollama
+         ollama serve            # 別ターミナルで常駐
+         ollama pull qwen2.5:3b  # 設定の「整形」タブのモデル名と合わせる
+
+   - **DeepSeek（API・高精度）**: 同音異義語の判別が高精度。[platform.deepseek.com](https://platform.deepseek.com) で API キーを取得し、「整形」タブの「DeepSeek」を選んでキーを入力（macOS Keychain に保存）。既定モデルは `deepseek-chat`。**文字起こしテキストが外部送信される**点に注意。
 
 ## 使い方
 

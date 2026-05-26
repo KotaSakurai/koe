@@ -267,9 +267,27 @@ final class AppController: ObservableObject {
             return raw
         }
         transition(.refining)
-        log("整形開始（Ollama: \(Settings.ollamaModel)）")
-        let client = OllamaClient(baseURL: Settings.ollamaBaseURL, model: Settings.ollamaModel)
-        let refined = await client.refine(raw)
+        // 同音異義語の判別を分野に寄せるため、Whisper 用の語彙ヒントを整形にも渡す。
+        let hint = Settings.initialPrompt
+        let mode = Settings.refineMode
+        let refined: String
+        switch Settings.refineProvider {
+        case .deepseek:
+            log("整形開始（DeepSeek: \(Settings.deepseekModel) / \(mode.rawValue)）")
+            let client = DeepSeekClient(apiKey: Settings.deepseekAPIKey,
+                                        model: Settings.deepseekModel,
+                                        baseURL: Settings.deepseekBaseURL,
+                                        domainHint: hint,
+                                        mode: mode)
+            refined = await client.refine(raw)
+        case .ollama:
+            log("整形開始（Ollama: \(Settings.ollamaModel) / \(mode.rawValue)）")
+            let client = OllamaClient(baseURL: Settings.ollamaBaseURL,
+                                      model: Settings.ollamaModel,
+                                      domainHint: hint,
+                                      mode: mode)
+            refined = await client.refine(raw)
+        }
         if refined != raw { log("整形前: \(raw)") }
         return refined
     }

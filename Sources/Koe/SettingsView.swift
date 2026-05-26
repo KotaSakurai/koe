@@ -6,11 +6,18 @@ struct SettingsView: View {
 
     @AppStorage(SettingsKey.whisperModel) private var whisperModel = WhisperModelKind.small.rawValue
     @AppStorage(SettingsKey.refineEnabled) private var refineEnabled = true
+    @AppStorage(SettingsKey.refineProvider) private var refineProvider = RefineProvider.ollama.rawValue
+    @AppStorage(SettingsKey.refineMode) private var refineMode = RefineMode.strict.rawValue
     @AppStorage(SettingsKey.ollamaModel) private var ollamaModel = "qwen2.5:3b"
     @AppStorage(SettingsKey.ollamaBaseURL) private var ollamaBaseURL = "http://localhost:11434"
+    @AppStorage(SettingsKey.deepseekModel) private var deepseekModel = "deepseek-chat"
+    @AppStorage(SettingsKey.deepseekBaseURL) private var deepseekBaseURL = "https://api.deepseek.com"
     @AppStorage(SettingsKey.hotkey) private var hotkey = HotkeyKind.rightOption.rawValue
     @AppStorage(SettingsKey.restoreClipboard) private var restoreClipboard = true
     @AppStorage(SettingsKey.initialPrompt) private var initialPrompt = defaultInitialPrompt
+
+    // API キーは Keychain 保管（UserDefaults に置かない）。画面では State で扱い、変更時に Keychain へ書く。
+    @State private var deepseekAPIKey = ""
 
     var body: some View {
         TabView {
@@ -66,23 +73,81 @@ struct SettingsView: View {
         .padding()
     }
 
-    // MARK: 整形（Ollama）
+    // MARK: 整形（Ollama / DeepSeek）
 
     private var refineTab: some View {
         Form {
-            Toggle("漢字の取り違えだけ補正する（Ollama・言い換えはしない）", isOn: $refineEnabled)
+            Toggle("漢字の取り違えだけ補正する（言い換えはしない）", isOn: $refineEnabled)
+
+            Picker("補正エンジン", selection: $refineProvider) {
+                Text("Ollama（ローカル・オフライン）").tag(RefineProvider.ollama.rawValue)
+                Text("DeepSeek（API・高精度）").tag(RefineProvider.deepseek.rawValue)
+            }
+            .pickerStyle(.segmented)
+            .disabled(!refineEnabled)
+
+            Picker("補正の強さ", selection: $refineMode) {
+                Text("厳密（漢字のみ）").tag(RefineMode.strict.rawValue)
+                Text("自然化（カタカナ→英字）").tag(RefineMode.natural.rawValue)
+            }
+            .pickerStyle(.segmented)
+            .disabled(!refineEnabled)
+
+            if refineMode == RefineMode.natural.rawValue {
+                Text("自然化: 「ディープシーク→DeepSeek」のように、確立した英語の固有名詞・製品名・略語をカタカナから英字表記に直します。言い換え・要約はしません（読みガードは外れ、長さガードで暴走を抑えます）。")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text("厳密: 同音異義語の漢字ミス（例: 保管→補完）だけを直します。読みが変わる修正は破棄します（最も安全）。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Divider()
+
+            if refineProvider == RefineProvider.deepseek.rawValue {
+                deepseekFields
+            } else {
+                ollamaFields
+            }
+        }
+        .padding()
+        .onAppear { deepseekAPIKey = Keychain.get(account: deepseekKeyAccount) ?? "" }
+    }
+
+    private var ollamaFields: some View {
+        Group {
             TextField("Ollama モデル名", text: $ollamaModel)
                 .textFieldStyle(.roundedBorder)
             TextField("Ollama サーバ URL", text: $ollamaBaseURL)
                 .textFieldStyle(.roundedBorder)
-            Text("オンにすると、同音異義語の漢字ミス（例: 保管→補完）だけを直します。語尾や言い回しは変えません。")
-                .font(.caption).foregroundStyle(.secondary)
             Text("Ollama が未起動・接続失敗のときは、補正せず文字起こし結果をそのまま使います。")
                 .font(.caption).foregroundStyle(.secondary)
             Text("導入例: brew install ollama → ollama serve → ollama pull \(ollamaModel)")
                 .font(.caption).foregroundStyle(.secondary)
         }
-        .padding()
+        .disabled(!refineEnabled)
+    }
+
+    private var deepseekFields: some View {
+        Group {
+            SecureField("DeepSeek API キー", text: $deepseekAPIKey)
+                .textFieldStyle(.roundedBorder)
+                .onChange(of: deepseekAPIKey) { _, new in
+                    Keychain.set(new.trimmingCharacters(in: .whitespacesAndNewlines),
+                                 account: deepseekKeyAccount)
+                }
+            TextField("DeepSeek モデル名", text: $deepseekModel)
+                .textFieldStyle(.roundedBorder)
+            TextField("DeepSeek API URL", text: $deepseekBaseURL)
+                .textFieldStyle(.roundedBorder)
+            Label("DeepSeek 選択時は、文字起こしテキストが外部（DeepSeek サーバ）へ送信されます。完全オフラインではありません。",
+                  systemImage: "exclamationmark.triangle.fill")
+                .font(.caption).foregroundStyle(.orange)
+            Text("API キーは macOS Keychain に保存します。キーは https://platform.deepseek.com で取得できます。")
+                .font(.caption).foregroundStyle(.secondary)
+            Text("キー未設定・接続失敗のときは、補正せず文字起こし結果をそのまま使います。")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .disabled(!refineEnabled)
     }
 
     // MARK: 操作（ホットキー）
