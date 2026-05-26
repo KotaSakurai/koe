@@ -23,9 +23,19 @@ struct OllamaClient {
     出力は本文のみ。引用符・説明・前置きを付けない。
     """
 
-    func refine(_ raw: String) async -> String {
+    // 整形の結果と、その判断理由（ログ・検証用）。
+    struct Outcome: Sendable {
+        let finalText: String     // 実際に採用したテキスト
+        let proposed: String?     // LLM が返した整形案（呼べた場合）
+        let accepted: Bool        // 整形案を採用したか
+        let reason: String        // accepted / no_change / reading_changed / length_guard / empty_response / http_error / unreachable
+    }
+
+    func refine(_ raw: String) async -> Outcome {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return raw }
+        guard !trimmed.isEmpty else {
+            return Outcome(finalText: raw, proposed: nil, accepted: false, reason: "empty_input")
+        }
 
         do {
             let url = baseURL.appendingPathComponent("api/chat")
@@ -45,28 +55,32 @@ struct OllamaClient {
 
             let (data, response) = try await URLSession.shared.data(for: req)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                log("整形スキップ（Ollama 応答エラー）: フォールバックで生テキストを使用")
-                return trimmed
+                log("整形スキップ（Ollama 応答エラー）: 生テキストを使用")
+                return Outcome(finalText: trimmed, proposed: nil, accepted: false, reason: "http_error")
             }
             let decoded = try JSONDecoder().decode(ChatResponse.self, from: data)
             let refined = decoded.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            if refined.isEmpty { return trimmed }
-
+            if refined.isEmpty {
+                return Outcome(finalText: trimmed, proposed: nil, accepted: false, reason: "empty_response")
+            }
+            if refined == trimmed {
+                return Outcome(finalText: trimmed, proposed: refined, accepted: false, reason: "no_change")
+            }
             // 安全ガード1: 文字数が大きく変わる結果（指示への返答・丸ごと書き換え）は破棄。
             if refined.count > Int(Double(trimmed.count) * 1.4) + 4 || refined.count * 2 < trimmed.count {
                 log("補正結果が原文と大きく異なるため破棄（生テキストを使用）")
-                return trimmed
+                return Outcome(finalText: trimmed, proposed: refined, accepted: false, reason: "length_guard")
             }
             // 安全ガード2（本命）: 読み（ふりがな）が変わる修正は「言い換え・意味反転」とみなし破棄。
             // 読みが同じ＝漢字の取り違えを直しただけ、のときのみ採用する。
             if !Reading.isSame(trimmed, refined) {
                 log("読みが変わるため破棄（言い換え/誤変換とみなし生テキストを使用）")
-                return trimmed
+                return Outcome(finalText: trimmed, proposed: refined, accepted: false, reason: "reading_changed")
             }
-            return refined
+            return Outcome(finalText: refined, proposed: refined, accepted: true, reason: "accepted")
         } catch {
             log("整形スキップ（Ollama 接続失敗: \(error.localizedDescription)）: 生テキストを使用")
-            return trimmed
+            return Outcome(finalText: trimmed, proposed: nil, accepted: false, reason: "unreachable")
         }
     }
 

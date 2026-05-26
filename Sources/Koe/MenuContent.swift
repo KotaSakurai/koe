@@ -32,6 +32,11 @@ struct MenuContent: View {
             Button("⚠️ アクセシビリティを許可（貼り付け）") { Permissions.openPrivacyPane(.accessibility) }
         }
 
+        Button("ログ（記録）をFinderで開く") {
+            NSWorkspace.shared.selectFile(SessionLogger.logFileURL.path,
+                                          inFileViewerRootedAtPath: SessionLogger.logDirectory.path)
+        }
+
         SettingsLink {
             Text("設定…")
         }

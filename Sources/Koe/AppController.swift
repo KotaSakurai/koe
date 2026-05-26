@@ -201,7 +201,7 @@ final class AppController: ObservableObject {
         guard samples.count > 1600 else {   // 0.1 秒未満は無視
             log("音声が短すぎます。スキップします"); transition(.idle); return
         }
-        process(samples: samples)
+        process(samples: samples, peak: peak, rms: rms, seconds: seconds)
     }
 
     // 録音中、波形と経過時間を定期更新する（メインのランループ上で発火）。
@@ -232,8 +232,8 @@ final class AppController: ObservableObject {
         }
     }
 
-    // 文字起こし → LLM 整形 →（M4 挿入は後続）
-    private func process(samples: [Float]) {
+    // 文字起こし → LLM 整形 → 挿入 →（検証用に JSONL ログ記録）
+    private func process(samples: [Float], peak: Float, rms: Float, seconds: Double) {
         guard let t = transcriberIfReady() else { transition(.idle); return }
         transition(.transcribing)
         Task { [weak self] in
@@ -245,13 +245,34 @@ final class AppController: ObservableObject {
                 log("文字起こし: \(raw)")
                 guard !raw.isEmpty else { self.transition(.idle); return }
 
-                let finalText = await self.refineIfEnabled(raw)
+                let outcome = await self.refineIfEnabled(raw)
+                let finalText = outcome.finalText
                 log("最終テキスト: \(finalText)")
                 self.lastResult = finalText
-                switch TextInjector.insert(finalText, restoreClipboard: Settings.restoreClipboard) {
-                case .pasted:     log("挿入完了")
-                case .copiedOnly: log("クリップボードにコピー（貼り付けにはアクセシビリティ許可が必要）")
+
+                let injectResult = TextInjector.insert(finalText, restoreClipboard: Settings.restoreClipboard)
+                let injectStr: String
+                switch injectResult {
+                case .pasted:     injectStr = "pasted"; log("挿入完了")
+                case .copiedOnly: injectStr = "copied";  log("クリップボードにコピー（貼り付けにはアクセシビリティ許可が必要）")
                 }
+
+                SessionLogger.record([
+                    "durationSec": (seconds * 10).rounded() / 10,
+                    "samples": samples.count,
+                    "peak": (Double(peak) * 1000).rounded() / 1000,
+                    "rms": (Double(rms) * 1000).rounded() / 1000,
+                    "whisperModel": self.model.rawValue,
+                    "refineEnabled": Settings.refineEnabled,
+                    "ollamaModel": Settings.ollamaModel,
+                    "raw": raw,
+                    "proposed": outcome.proposed ?? NSNull(),
+                    "accepted": outcome.accepted,
+                    "reason": outcome.reason,
+                    "final": finalText,
+                    "changed": (finalText != raw),
+                    "inject": injectStr
+                ])
                 self.transition(.idle)
             } catch {
                 log("文字起こし失敗: \(error)")
@@ -261,17 +282,17 @@ final class AppController: ObservableObject {
     }
 
     // 設定が有効なら Ollama で整形する。無効・失敗時は生テキストを返す。
-    private func refineIfEnabled(_ raw: String) async -> String {
+    private func refineIfEnabled(_ raw: String) async -> OllamaClient.Outcome {
         guard Settings.refineEnabled else {
             log("整形は無効。生の文字起こしを使用")
-            return raw
+            return OllamaClient.Outcome(finalText: raw, proposed: nil, accepted: false, reason: "disabled")
         }
         transition(.refining)
         log("整形開始（Ollama: \(Settings.ollamaModel)）")
         let client = OllamaClient(baseURL: Settings.ollamaBaseURL, model: Settings.ollamaModel)
-        let refined = await client.refine(raw)
-        if refined != raw { log("整形前: \(raw)") }
-        return refined
+        let outcome = await client.refine(raw)
+        if outcome.accepted { log("整形前: \(raw)") }
+        return outcome
     }
 
     // MARK: 診断用セルフテスト
@@ -337,7 +358,7 @@ final class AppController: ObservableObject {
                                                  language: Settings.language,
                                                  initialPrompt: Settings.initialPrompt)
                 log("文字起こし結果: \(raw)")
-                let finalText = await self.refineIfEnabled(raw)
+                let finalText = await self.refineIfEnabled(raw).finalText
                 log("最終テキスト: \(finalText)")
                 self.lastResult = finalText
             } catch {
