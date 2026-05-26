@@ -12,8 +12,17 @@ enum SettingsKey {
     static let initialPrompt  = "koe.initialPrompt"
 }
 
-// Whisper の語彙ヒント（initial_prompt）の既定値。専門用語の認識精度を上げる。
-let defaultInitialPrompt = "以下はソフトウェア開発に関する日本語の発話です。専門用語の例: コミット、プッシュ、プルリクエスト、マージ、ブランチ、デプロイ、リファクタリング、ビルド、テスト、リポジトリ、API、データベース、サーバー、フロントエンド、バックエンド、TypeScript、Swift。"
+// Whisper の語彙ヒント（initial_prompt）の既定値。専門用語の認識精度を上げる“辞書”。
+// 設定の「認識」タブで自由に語を追加できる。
+let defaultInitialPrompt = "以下はソフトウェア開発に関する日本語の発話です。次の専門用語が正しく表記されます: " + [
+    "コミット", "プッシュ", "プル", "プルリクエスト", "マージ", "リベース", "ブランチ",
+    "コンフリクト", "ステージング", "デプロイ", "リリース", "ロールバック",
+    "ビルド", "テスト", "デバッグ", "リファクタリング", "レビュー", "プレビュー",
+    "リポジトリ", "コンポーネント", "ライブラリ", "フレームワーク", "モジュール",
+    "エンドポイント", "API", "データベース", "クエリ", "キャッシュ", "サーバー",
+    "クライアント", "フロントエンド", "バックエンド", "認証", "トークン", "セッション",
+    "TypeScript", "JavaScript", "Swift", "SwiftUI", "Xcode", "GitHub", "Ollama", "Whisper"
+].joined(separator: "、") + "。"
 
 enum Settings {
     private static var d: UserDefaults { .standard }

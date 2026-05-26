@@ -52,10 +52,15 @@ struct OllamaClient {
             let refined = decoded.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
             if refined.isEmpty { return trimmed }
 
-            // 安全ガード: 漢字の取り違え補正なら文字数はほぼ不変のはず。
-            // 大きく伸びた（指示への返答など）／半分以下になった（欠落）結果は破棄し、生テキストを使う。
+            // 安全ガード1: 文字数が大きく変わる結果（指示への返答・丸ごと書き換え）は破棄。
             if refined.count > Int(Double(trimmed.count) * 1.4) + 4 || refined.count * 2 < trimmed.count {
                 log("補正結果が原文と大きく異なるため破棄（生テキストを使用）")
+                return trimmed
+            }
+            // 安全ガード2（本命）: 読み（ふりがな）が変わる修正は「言い換え・意味反転」とみなし破棄。
+            // 読みが同じ＝漢字の取り違えを直しただけ、のときのみ採用する。
+            if !Reading.isSame(trimmed, refined) {
+                log("読みが変わるため破棄（言い換え/誤変換とみなし生テキストを使用）")
                 return trimmed
             }
             return refined
