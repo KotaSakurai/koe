@@ -189,7 +189,15 @@ final class AppController: ObservableObject {
         stopLevelTimer()
         let samples = recorder.stop()
         let seconds = Double(samples.count) / AudioRecorder.targetSampleRate
-        log(String(format: "録音停止: %d サンプル (約 %.1f 秒)", samples.count, seconds))
+        // 診断: 実際に録音された音声のレベル（peak/rms）を出し、WAV も保存する。
+        let peak = samples.reduce(Float(0)) { Swift.max($0, abs($1)) }
+        let rms = (samples.reduce(Float(0)) { $0 + $1 * $1 } / Float(Swift.max(1, samples.count))).squareRoot()
+        log(String(format: "録音停止: %d サンプル (約 %.1f 秒) peak=%.3f rms=%.3f",
+                   samples.count, seconds, peak, rms))
+        if ProcessInfo.processInfo.environment["KOE_DUMP_AUDIO"] == "1" {
+            WavWriter.write(samples, to: URL(fileURLWithPath: "/tmp/koe_last.wav"))
+            log("録音音声を /tmp/koe_last.wav に保存しました")
+        }
         guard samples.count > 1600 else {   // 0.1 秒未満は無視
             log("音声が短すぎます。スキップします"); transition(.idle); return
         }
