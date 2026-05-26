@@ -1,0 +1,46 @@
+name: release
+
+# main へ push するたびに、ビルドしてバージョン付きの GitHub Release を作成する。
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write   # タグ・リリースの作成に必要
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    runs-on: macos-15   # Apple Silicon・Xcode 16（Swift 6）
+    steps:
+      - name: チェックアウト
+        uses: actions/checkout@v4
+
+      - name: cmake を用意
+        run: cmake --version || brew install cmake
+
+      - name: whisper.cpp 静的ライブラリをビルド
+        run: CMAKE=cmake ./scripts/build-whisper.sh
+
+      - name: アプリをビルド（.app）
+        run: make app
+
+      - name: .app を zip 化
+        run: cd build && zip -r -y Koe.app.zip Koe.app
+
+      - name: バージョン番号を決定
+        id: ver
+        run: echo "version=v0.1.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: リリースを作成
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.ver.outputs.version }}" \
+            build/Koe.app.zip \
+            --target "${{ github.sha }}" \
+            --title "Koe ${{ steps.ver.outputs.version }}" \
+            --generate-notes

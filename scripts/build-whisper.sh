@@ -5,12 +5,21 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"          # koe/
-CMAKE="$(echo "$HERE"/.tools/cmake-*/CMake.app/Contents/bin/cmake)"
+# cmake は環境変数 CMAKE で上書き可能（CI では brew の cmake を使う）。
+# 未指定ならローカル展開した .tools/cmake-* を使う。
+CMAKE="${CMAKE:-$(echo "$HERE"/.tools/cmake-*/CMake.app/Contents/bin/cmake)}"
+WHISPER_TAG="${WHISPER_TAG:-v1.7.6}"
 WD="$HERE/third_party/whisper.cpp"
 BUILD="$WD/build-koe"
 
-if [ ! -x "$CMAKE" ]; then echo "cmake が見つかりません: $CMAKE" >&2; exit 1; fi
-if [ ! -d "$WD" ]; then echo "whisper.cpp が見つかりません: $WD" >&2; exit 1; fi
+if ! command -v "$CMAKE" >/dev/null 2>&1 && [ ! -x "$CMAKE" ]; then
+    echo "cmake が見つかりません: $CMAKE（CMAKE 環境変数で指定可）" >&2; exit 1
+fi
+# whisper.cpp が無ければ指定タグを浅くクローンする（CI・新規クローン向け）。
+if [ ! -d "$WD" ]; then
+    echo "[build-whisper] whisper.cpp ($WHISPER_TAG) を取得..."
+    git clone --depth 1 --branch "$WHISPER_TAG" https://github.com/ggml-org/whisper.cpp "$WD"
+fi
 
 echo "[build-whisper] cmake 構成..."
 "$CMAKE" -B "$BUILD" -S "$WD" \
