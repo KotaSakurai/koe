@@ -4,6 +4,11 @@ BIN        := .build/$(CONFIG)/$(APP)
 BUNDLE     := build/$(APP).app
 CONTENTS   := $(BUNDLE)/Contents
 ENTITLE    := Resources/Koe.entitlements
+BUNDLE_ID  := com.kazumalab.koe
+# ad-hoc 署名の既定 Designated Requirement は cdhash（バイナリのハッシュ）になり、
+# 再ビルドのたびに値が変わるため、入力監視・アクセシビリティの権限が毎回リセットされる。
+# Bundle ID ベースの安定した要件を埋め込み、再ビルドしても TCC が同一アプリと認識し続けるようにする。
+DESIGNATED := =designated => identifier "$(BUNDLE_ID)"
 
 .PHONY: all build app sign run clean
 
@@ -32,9 +37,9 @@ app: build
 # ad-hoc 署名（自己署名）。entitlements があれば付与する。
 sign:
 	@if [ -f $(ENTITLE) ]; then \
-		codesign --force --sign - --entitlements $(ENTITLE) --options runtime $(BUNDLE) ; \
+		codesign --force --sign - --identifier $(BUNDLE_ID) --requirements '$(DESIGNATED)' --entitlements $(ENTITLE) --options runtime $(BUNDLE) ; \
 	else \
-		codesign --force --sign - $(BUNDLE) ; \
+		codesign --force --sign - --identifier $(BUNDLE_ID) --requirements '$(DESIGNATED)' $(BUNDLE) ; \
 	fi
 
 # 実行ファイルを直接起動してログをターミナルに表示する
