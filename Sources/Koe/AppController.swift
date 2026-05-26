@@ -264,7 +264,10 @@ final class AppController: ObservableObject {
                     "rms": (Double(rms) * 1000).rounded() / 1000,
                     "whisperModel": self.model.rawValue,
                     "refineEnabled": Settings.refineEnabled,
+                    "refineProvider": Settings.refineProvider.rawValue,
+                    "refineMode": Settings.refineMode.rawValue,
                     "ollamaModel": Settings.ollamaModel,
+                    "deepseekModel": Settings.deepseekModel,
                     "raw": raw,
                     "proposed": outcome.proposed ?? NSNull(),
                     "accepted": outcome.accepted,
@@ -281,16 +284,34 @@ final class AppController: ObservableObject {
         }
     }
 
-    // 設定が有効なら Ollama で整形する。無効・失敗時は生テキストを返す。
-    private func refineIfEnabled(_ raw: String) async -> OllamaClient.Outcome {
+    // 設定が有効なら整形する（Ollama or DeepSeek）。無効・失敗時は生テキストを返す。
+    private func refineIfEnabled(_ raw: String) async -> RefineOutcome {
         guard Settings.refineEnabled else {
             log("整形は無効。生の文字起こしを使用")
-            return OllamaClient.Outcome(finalText: raw, proposed: nil, accepted: false, reason: "disabled")
+            return RefineOutcome(finalText: raw, proposed: nil, accepted: false, reason: "disabled")
         }
         transition(.refining)
-        log("整形開始（Ollama: \(Settings.ollamaModel)）")
-        let client = OllamaClient(baseURL: Settings.ollamaBaseURL, model: Settings.ollamaModel)
-        let outcome = await client.refine(raw)
+        // 同音異義語の判別を分野に寄せるため、Whisper 用の語彙ヒントを整形にも渡す。
+        let hint = Settings.initialPrompt
+        let mode = Settings.refineMode
+        let outcome: RefineOutcome
+        switch Settings.refineProvider {
+        case .deepseek:
+            log("整形開始（DeepSeek: \(Settings.deepseekModel) / \(mode.rawValue)）")
+            let client = DeepSeekClient(apiKey: Settings.deepseekAPIKey,
+                                        model: Settings.deepseekModel,
+                                        baseURL: Settings.deepseekBaseURL,
+                                        domainHint: hint,
+                                        mode: mode)
+            outcome = await client.refine(raw)
+        case .ollama:
+            log("整形開始（Ollama: \(Settings.ollamaModel) / \(mode.rawValue)）")
+            let client = OllamaClient(baseURL: Settings.ollamaBaseURL,
+                                      model: Settings.ollamaModel,
+                                      domainHint: hint,
+                                      mode: mode)
+            outcome = await client.refine(raw)
+        }
         if outcome.accepted { log("整形前: \(raw)") }
         return outcome
     }
