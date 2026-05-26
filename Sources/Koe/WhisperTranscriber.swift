@@ -34,7 +34,7 @@ actor WhisperTranscriber {
         whisper_free(ctx)
     }
 
-    func transcribe(samples: [Float], language: String = "ja") throws -> String {
+    func transcribe(samples: [Float], language: String = "ja", initialPrompt: String = "") throws -> String {
         guard !samples.isEmpty else { return "" }
 
         var params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
@@ -49,11 +49,21 @@ actor WhisperTranscriber {
         params.detect_language = false
         params.n_threads = Int32(max(1, ProcessInfo.processInfo.activeProcessorCount - 1))
 
-        // language ポインタは whisper_full 呼び出し中だけ有効であればよい。
+        // language / initial_prompt ポインタは whisper_full 呼び出し中だけ有効であればよい。
+        // 語彙ヒント（initial_prompt）はデコーダを専門用語へバイアスさせ、誤認識を減らす。
         let status: Int32 = language.withCString { langPtr -> Int32 in
             params.language = langPtr
-            return samples.withUnsafeBufferPointer { buf in
-                whisper_full(ctx, params, buf.baseAddress, Int32(buf.count))
+            if initialPrompt.isEmpty {
+                return samples.withUnsafeBufferPointer { buf in
+                    whisper_full(ctx, params, buf.baseAddress, Int32(buf.count))
+                }
+            } else {
+                return initialPrompt.withCString { promptPtr -> Int32 in
+                    params.initial_prompt = promptPtr
+                    return samples.withUnsafeBufferPointer { buf in
+                        whisper_full(ctx, params, buf.baseAddress, Int32(buf.count))
+                    }
+                }
             }
         }
         guard status == 0 else { throw TranscribeError.inferenceFailed(status) }

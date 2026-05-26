@@ -3,24 +3,27 @@ import Foundation
 // Whisper の ggml モデル（.bin）の所在管理と初回ダウンロードを担う。
 // 保存先: ~/Library/Application Support/Koe/models/
 enum WhisperModelKind: String, CaseIterable, Identifiable {
-    case base   = "ggml-base.bin"
-    case small  = "ggml-small.bin"
-    case medium = "ggml-medium.bin"
+    case base         = "ggml-base.bin"
+    case small        = "ggml-small.bin"
+    case medium       = "ggml-medium.bin"
+    case largeV3Turbo = "ggml-large-v3-turbo.bin"
 
     var id: String { rawValue }
     var displayName: String {
         switch self {
-        case .base:   return "base（軽量・約148MB）"
-        case .small:  return "small（推奨・約466MB）"
-        case .medium: return "medium（高精度・約1.5GB）"
+        case .base:         return "base（軽量・約148MB）"
+        case .small:        return "small（約466MB）"
+        case .medium:       return "medium（高精度・約1.5GB）"
+        case .largeV3Turbo: return "large-v3-turbo（専門用語に強い・推奨・約1.6GB）"
         }
     }
     // 完了判定に使う概算の最小バイト数
     var minBytes: Int64 {
         switch self {
-        case .base:   return 130_000_000
-        case .small:  return 400_000_000
-        case .medium: return 1_400_000_000
+        case .base:         return 130_000_000
+        case .small:        return 400_000_000
+        case .medium:       return 1_400_000_000
+        case .largeV3Turbo: return 1_500_000_000
         }
     }
 }

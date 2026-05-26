@@ -239,7 +239,9 @@ final class AppController: ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             do {
-                let raw = try await t.transcribe(samples: samples, language: Settings.language)
+                let raw = try await t.transcribe(samples: samples,
+                                                 language: Settings.language,
+                                                 initialPrompt: Settings.initialPrompt)
                 log("文字起こし: \(raw)")
                 guard !raw.isEmpty else { self.transition(.idle); return }
 
@@ -331,7 +333,9 @@ final class AppController: ObservableObject {
                 guard let t = self.transcriberIfReady() else {
                     self.terminateIfSelfTest(); return
                 }
-                let raw = try await t.transcribe(samples: samples, language: Settings.language)
+                let raw = try await t.transcribe(samples: samples,
+                                                 language: Settings.language,
+                                                 initialPrompt: Settings.initialPrompt)
                 log("文字起こし結果: \(raw)")
                 let finalText = await self.refineIfEnabled(raw)
                 log("最終テキスト: \(finalText)")

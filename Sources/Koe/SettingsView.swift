@@ -10,6 +10,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.ollamaBaseURL) private var ollamaBaseURL = "http://localhost:11434"
     @AppStorage(SettingsKey.hotkey) private var hotkey = HotkeyKind.rightOption.rawValue
     @AppStorage(SettingsKey.restoreClipboard) private var restoreClipboard = true
+    @AppStorage(SettingsKey.initialPrompt) private var initialPrompt = defaultInitialPrompt
 
     var body: some View {
         TabView {
@@ -47,6 +48,20 @@ struct SettingsView: View {
                 }
             }
             Text("モデルの変更はアプリの再起動後に反映されます。").font(.caption).foregroundStyle(.secondary)
+
+            Divider()
+
+            Text("語彙ヒント（専門用語の認識を補助）").font(.subheadline)
+            TextEditor(text: $initialPrompt)
+                .font(.system(size: 12))
+                .frame(height: 70)
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.secondary.opacity(0.3)))
+            HStack {
+                Spacer()
+                Button("既定に戻す") { initialPrompt = defaultInitialPrompt }
+            }
+            Text("よく使う固有名詞・専門用語を列挙すると、その語に認識が寄ります。")
+                .font(.caption).foregroundStyle(.secondary)
         }
         .padding()
     }

@@ -9,7 +9,11 @@ enum SettingsKey {
     static let hotkey         = "koe.hotkey"
     static let restoreClipboard = "koe.restoreClipboard"
     static let language       = "koe.language"
+    static let initialPrompt  = "koe.initialPrompt"
 }
+
+// Whisper の語彙ヒント（initial_prompt）の既定値。専門用語の認識精度を上げる。
+let defaultInitialPrompt = "以下はソフトウェア開発に関する日本語の発話です。専門用語の例: コミット、プッシュ、プルリクエスト、マージ、ブランチ、デプロイ、リファクタリング、ビルド、テスト、リポジトリ、API、データベース、サーバー、フロントエンド、バックエンド、TypeScript、Swift。"
 
 enum Settings {
     private static var d: UserDefaults { .standard }
@@ -19,10 +23,11 @@ enum Settings {
             SettingsKey.refineEnabled: true,
             SettingsKey.ollamaModel: "qwen2.5:3b",
             SettingsKey.ollamaBaseURL: "http://localhost:11434",
-            SettingsKey.whisperModel: WhisperModelKind.small.rawValue,
+            SettingsKey.whisperModel: WhisperModelKind.largeV3Turbo.rawValue,
             SettingsKey.hotkey: HotkeyKind.rightOption.rawValue,
             SettingsKey.restoreClipboard: true,
-            SettingsKey.language: "ja"
+            SettingsKey.language: "ja",
+            SettingsKey.initialPrompt: defaultInitialPrompt
         ])
     }
 
@@ -39,7 +44,11 @@ enum Settings {
     }
 
     static var whisperModel: WhisperModelKind {
-        WhisperModelKind(rawValue: d.string(forKey: SettingsKey.whisperModel) ?? "") ?? .small
+        WhisperModelKind(rawValue: d.string(forKey: SettingsKey.whisperModel) ?? "") ?? .largeV3Turbo
+    }
+
+    static var initialPrompt: String {
+        d.string(forKey: SettingsKey.initialPrompt) ?? defaultInitialPrompt
     }
 
     static var hotkey: HotkeyKind {
