@@ -1,0 +1,13 @@
+# ビルド成果物
+.build/
+build/
+
+# ローカル依存（スクリプトで再生成可能）
+.tools/
+third_party/
+Vendor/
+
+# build-whisper.sh が生成するヘッダ（module.modulemap と shim.c は残す）
+Sources/CWhisper/include/*.h
+
+.DS_Store
